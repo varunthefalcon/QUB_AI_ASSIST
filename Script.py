@@ -127,11 +127,19 @@ def handleSubmit():
     st.experimental_rerun()
 
 
-# def handlePasswordSubmit(password):
-#     # st.session_state["loading"] = True
-#     st.write(password, system_password)
-#     st.session_state["page_number"] = 2
-#     st.experimental_rerun()
+def sendFinalEmail():
+    content = r"We hightly appreciate your efforts in participating in the feedback. Your amazon voucher code is {}".format(
+        st.session_state["amazon_voucher"]
+    )
+
+    with yagmail.SMTP(user, app_password) as yag:
+        yag.send(
+            st.session_state["student_email"],
+            "Thank you for participating in the Feedback ",
+            content,
+        )
+        print("Sent email successfully")
+    st.session_state["loading"] = True
 
 
 def handleFinalSubmit(original, ai):
@@ -264,6 +272,7 @@ elif st.session_state["page_number"] == 2:
             ),
             unsafe_allow_html=True,
         )
+        sendFinalEmail()
 
 
 title_alignment = """
