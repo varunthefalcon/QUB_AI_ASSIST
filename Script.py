@@ -28,9 +28,7 @@ gc = gspread.service_account_from_dict(
     }
 )
 
-sh = gc.open_by_url(
-    "https://docs.google.com/spreadsheets/d/1MFytQYnb3xHhBW3-hWcPrb2vni0mBcYDkT9yca7UlwI"
-)
+sh = gc.open_by_url(os.environ.get("google_sheet"))
 
 login_info_sheet = sh.get_worksheet(0)
 data_sheet = sh.get_worksheet(1)
