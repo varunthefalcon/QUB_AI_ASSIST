@@ -3,6 +3,7 @@ import gspread
 import streamlit as st
 import pandas as pd
 import os, time
+from datetime import datetime
 import yagmail
 import EssayContent
 import uuid
@@ -43,16 +44,31 @@ def api_get_available_index(worksheet):
 #
 def api_record_login_time():
     r = api_get_available_index(login_info_sheet)
+
+    st.session_state["show_instructions_first"] = r % 2 == 0
+
     login_info_sheet.update(
         r"A{}:C{}".format(r, r),
         [
             [
                 st.session_state["student_email"],
                 st.session_state["student_ID"],
-                time.time(),
+                datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
             ]
         ],
     )
+
+
+def checkStudentDetailsInSheet():
+    student_email = st.session_state["student_email"]
+    student_ID = st.session_state["student_ID"]
+    emails = data_sheet.col_values(2)
+    studentIds = data_sheet.col_values(3)
+
+    if student_email.strip() in emails or student_ID.strip() in studentIds:
+        st.warning("You have already attended the survey. Thank you for participating")
+        return True
+    return False
 
 
 def api_record_results(original, ai):
@@ -63,6 +79,7 @@ def api_record_results(original, ai):
         print(items)
         if items[1] == "":
             st.session_state["amazon_voucher"] = items[0]
+            # st.session_state["web_page"] = "Voucher_page"
             break
         index += 1
 
@@ -74,11 +91,11 @@ def api_record_results(original, ai):
                 st.session_state["student_ID"],
                 original,
                 ai,
-                time.time(),
+                datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
             ]
         ],
     )
-    st.experimental_rerun()
+    # st.experimental_rerun()
 
 
 #
@@ -94,8 +111,8 @@ if "loading" not in st.session_state:
 if "email_sent_flag" not in st.session_state:
     st.session_state["email_sent_flag"] = False
 
-if "page_number" not in st.session_state:
-    st.session_state["page_number"] = 1
+if "web_page" not in st.session_state:
+    st.session_state["web_page"] = "LandingPage"
 
 if "amazon_voucher" not in st.session_state:
     st.session_state["amazon_voucher"] = False
@@ -109,22 +126,29 @@ if "student_email" not in st.session_state:
 if "system_password" not in st.session_state:
     st.session_state["system_password"] = uuid.uuid4().hex[:8]
 
+if "show_instructions_first" not in st.session_state:
+    st.session_state["show_instructions_first"] = True
+
 
 def handleSubmit():
     content = r"Hi, {}({}). Your pass code for the feeback form is {}".format(
-        st.session_state["student_email"],
-        st.session_state["student_ID"],
-        st.session_state["system_password"],
+        st.session_state["student_email"].strip(),
+        st.session_state["student_ID"].strip(),
+        st.session_state["system_password"].strip(),
     )
     print(content)
 
-    subject = "QUB AI Assist Feeback Form"
+    # check if voucher is sent already
 
-    with yagmail.SMTP(user, app_password) as yag:
-        yag.send(st.session_state["student_email"], subject, content)
-        print("Sent email successfully")
-    st.session_state["email_sent_flag"] = True
-    st.experimental_rerun()
+    if checkStudentDetailsInSheet() == False:
+        # proceed to send
+        subject = "QUB AI Assist Feeback Form"
+
+        with yagmail.SMTP(user, app_password) as yag:
+            yag.send(st.session_state["student_email"], subject, content)
+            print("Sent email successfully")
+        st.session_state["email_sent_flag"] = True
+        st.experimental_rerun()
 
 
 def sendFinalEmail():
@@ -143,15 +167,19 @@ def sendFinalEmail():
 
 
 def handleFinalSubmit(original, ai):
-    print(original, ai)
     api_record_results(original, ai)
     time.sleep(3)
+
+    if st.session_state["show_instructions_first"]:
+        st.session_state["web_page"] = "Voucher_page"
+    else:
+        st.session_state["web_page"] = "Instructions_page"
     st.experimental_rerun()
 
 
 # UI components
 
-if st.session_state["page_number"] == 1:
+if st.session_state["web_page"] == "LandingPage":
     # st.set_page_config(layout="centered")
     st.title(
         "Welcome to AI Assist Feedback System",
@@ -191,14 +219,19 @@ if st.session_state["page_number"] == 1:
 
         if login_btn:
             if password == st.session_state["system_password"]:
-                st.session_state["page_number"] = 2
                 api_record_login_time()
+
+                if st.session_state["show_instructions_first"]:
+                    st.session_state["web_page"] = "Instructions_page"
+                else:
+                    st.session_state["web_page"] = "Survey_page"
+
                 st.experimental_rerun()
             else:
                 st.error("Incorrect Pass code! Please try again", icon="🚨")
 
 
-elif st.session_state["page_number"] == 2:
+elif st.session_state["web_page"] == "Survey_page":
     st.set_page_config(layout="wide")
 
     # Using "with" notation
@@ -241,39 +274,73 @@ elif st.session_state["page_number"] == 2:
         if final_submit:
             handleFinalSubmit(original_feedback, ai_feedback)
 
-    if st.session_state["amazon_voucher"] == False:
-        st.header("Feedback on your 2nd PSY2008 essay")
+    st.header("Feedback on your 2nd PSY2008 essay")
 
-        with st.expander("**Professor's Feedback**"):
-            st.markdown(
-                EssayContent.prof_feedback,
-                unsafe_allow_html=True,
-            )
-
-        with st.expander("**Enhanced AI Feedback, based on Professor's Feedback**"):
-            st.markdown(
-                EssayContent.ai_feedback,
-                unsafe_allow_html=True,
-            )
-    else:
-        st.balloons()
+    with st.expander("**Professor's Feedback**"):
         st.markdown(
-            '<h1 style="text-align: center; margin-top: 3rem;">Thank you for the Feedback</h1>',
+            EssayContent.prof_feedback,
             unsafe_allow_html=True,
         )
 
+    with st.expander("**Enhanced AI Feedback, based on Professor's Feedback**"):
         st.markdown(
-            '<h3 style="text-align: center;">Collect your amazon voucher</h3>',
+            EssayContent.ai_feedback,
             unsafe_allow_html=True,
         )
-        st.markdown(
-            r'<div style="text-align: center;"><span class="amazon_voucher">{}</span></div>'.format(
-                st.session_state["amazon_voucher"]
-            ),
-            unsafe_allow_html=True,
-        )
-        sendFinalEmail()
 
+elif st.session_state["web_page"] == "Voucher_page":
+    st.balloons()
+    st.markdown(
+        '<h1 style="text-align: center; margin-top: 3rem;">Thank you for the Feedback</h1>',
+        unsafe_allow_html=True,
+    )
+
+    st.markdown(
+        '<h3 style="text-align: center;">Collect your amazon voucher</h3>',
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        r'<div style="text-align: center;"><span class="amazon_voucher">{}</span></div>'.format(
+            st.session_state["amazon_voucher"]
+        ),
+        unsafe_allow_html=True,
+    )
+    # sendFinalEmail()
+
+elif st.session_state["web_page"] == "Instructions_page":
+    st.header("How we generate feedback")
+
+    st.text(
+        '"Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum."'
+    )
+
+    st.markdown(
+        "- Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut et dolore magna aliqua."
+    )
+    st.markdown(
+        "- Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut et dolore magna aliqua."
+    )
+    st.markdown(
+        "- Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut et dolore magna aliqua."
+    )
+    st.markdown(
+        "- Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut et dolore magna aliqua."
+    )
+    st.markdown(
+        "- Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut et dolore magna aliqua."
+    )
+    st.markdown(
+        "- Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut et dolore magna aliqua."
+    )
+
+    clicked = st.button("Proceed", type="primary")
+
+    if clicked:
+        if st.session_state["show_instructions_first"]:
+            st.session_state["web_page"] = "Survey_page"
+        else:
+            st.session_state["web_page"] = "Voucher_page"
+        st.experimental_rerun()
 
 title_alignment = """
 <style>
