@@ -79,7 +79,6 @@ def api_record_results(original, ai):
         print(items)
         if items[1] == "":
             st.session_state["amazon_voucher"] = items[0]
-            # st.session_state["web_page"] = "Voucher_page"
             break
         index += 1
 
@@ -102,8 +101,6 @@ def api_record_results(original, ai):
 pp = os.environ.get("project_id")
 user = os.environ.get("gmail_id")
 app_password = os.environ.get("gmail_app_password")  # a token for gmail
-
-# page 1 session
 
 if "loading" not in st.session_state:
     st.session_state["loading"] = False
@@ -180,7 +177,6 @@ def handleFinalSubmit(original, ai):
 # UI components
 
 if st.session_state["web_page"] == "LandingPage":
-    # st.set_page_config(layout="centered")
     st.title(
         "Welcome to AI Assist Feedback System",
     )
@@ -305,7 +301,7 @@ elif st.session_state["web_page"] == "Voucher_page":
         ),
         unsafe_allow_html=True,
     )
-    # sendFinalEmail()
+    sendFinalEmail()
 
 elif st.session_state["web_page"] == "Instructions_page":
     st.header("How we generate feedback")
