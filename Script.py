@@ -11,6 +11,7 @@ import streamlit.components.v1 as components
 
 load_dotenv()
 
+horizontal_line_red_dotted = "<hr style='border-top: 2px solid red;margin: 0' />"
 
 gc = gspread.service_account_from_dict(
     {
@@ -69,7 +70,7 @@ def checkStudentDetailsInSheet():
     return False
 
 
-def api_record_results(original, ai):
+def api_record_results(original, ai, open_feedback):
     allData = data_sheet.get_all_values()
     index = 1
 
@@ -81,13 +82,14 @@ def api_record_results(original, ai):
         index += 1
 
     data_sheet.update(
-        r"B{}:F{}".format(index, index),
+        r"B{}:G{}".format(index, index),
         [
             [
                 st.session_state["student_email"],
                 st.session_state["student_ID"],
                 original,
                 ai,
+                open_feedback,
                 datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
             ]
         ],
@@ -107,7 +109,9 @@ if "email_sent_flag" not in st.session_state:
     st.session_state["email_sent_flag"] = False
 
 if "web_page" not in st.session_state:
-    st.session_state["web_page"] = "LandingPage"
+    st.session_state["web_page"] = "Survey_page"
+
+# Login_page > Instructions_page > Consent_Page(Do_not_consent_page) > (Conditional_Instructions_page) > Survey_page > (Conditional_Instructions_page) > Voucher_page
 
 if "amazon_voucher" not in st.session_state:
     st.session_state["amazon_voucher"] = False
@@ -161,20 +165,20 @@ def sendFinalEmail():
     st.session_state["loading"] = True
 
 
-def handleFinalSubmit(original, ai):
-    api_record_results(original, ai)
+def handleFinalSubmit(original, ai, open_feedback):
+    api_record_results(original, ai, open_feedback)
     time.sleep(3)
 
     if st.session_state["show_instructions_first"]:
         st.session_state["web_page"] = "Voucher_page"
     else:
-        st.session_state["web_page"] = "Instructions_page"
+        st.session_state["web_page"] = "Conditional_Instructions_page"
     st.experimental_rerun()
 
 
 # UI components
 
-if st.session_state["web_page"] == "LandingPage":
+if st.session_state["web_page"] == "Login_page":
     st.title(
         "Welcome to AI Assist Feedback System",
     )
@@ -214,11 +218,7 @@ if st.session_state["web_page"] == "LandingPage":
         if login_btn:
             if password == st.session_state["system_password"]:
                 api_record_login_time()
-
-                if st.session_state["show_instructions_first"]:
-                    st.session_state["web_page"] = "Instructions_page"
-                else:
-                    st.session_state["web_page"] = "Survey_page"
+                st.session_state["web_page"] = "Instructions_page"
 
                 st.experimental_rerun()
             else:
@@ -230,6 +230,10 @@ elif st.session_state["web_page"] == "Survey_page":
 
     # Using "with" notation
     with st.sidebar:
+        st.markdown(
+            horizontal_line_red_dotted,
+            unsafe_allow_html=True,
+        )
         original_feedback = st.select_slider(
             "Please rate the **original** version of the feebdack you received. \n",
             options=[
@@ -243,7 +247,10 @@ elif st.session_state["web_page"] == "Survey_page":
             ],
             disabled=st.session_state["amazon_voucher"] != False,
         )
-
+        st.markdown(
+            horizontal_line_red_dotted,
+            unsafe_allow_html=True,
+        )
         ai_feedback = st.select_slider(
             "Please rate the **alternative** version of the feedback you received.",
             options=[
@@ -257,6 +264,14 @@ elif st.session_state["web_page"] == "Survey_page":
             ],
             disabled=st.session_state["amazon_voucher"] != False,
         )
+        st.markdown(
+            horizontal_line_red_dotted,
+            unsafe_allow_html=True,
+        )
+
+        open_feedback = st.text_area(
+            "Your thoughts on reviewing these feedbacks", "", height=250
+        )
 
         final_submit = st.button(
             "Submit Rating",
@@ -266,7 +281,7 @@ elif st.session_state["web_page"] == "Survey_page":
         )
 
         if final_submit:
-            handleFinalSubmit(original_feedback, ai_feedback)
+            handleFinalSubmit(original_feedback, ai_feedback, open_feedback)
 
     st.header("Feedback on your 2nd PSY2008 essay")
 
@@ -285,50 +300,164 @@ elif st.session_state["web_page"] == "Survey_page":
 elif st.session_state["web_page"] == "Voucher_page":
     st.balloons()
     st.markdown(
-        '<h1 style="text-align: center; margin-top: 3rem;">Thank you for the Feedback</h1>',
+        '<h1 style="text-align: center; margin-top: 3rem;">Thank you for taking the survey</h1>',
         unsafe_allow_html=True,
     )
 
     st.markdown(
-        '<h3 style="text-align: center;">Collect your amazon voucher</h3>',
+        "<h4 style='text-align: justify;'>You have now completed the study. As mentioned initially, we would like to express our gratitude for your taking part in our study by giving you a £15 Amazon voucher as compensation for your time and effort. </h4>",
         unsafe_allow_html=True,
     )
+
+    st.markdown(
+        "Here is the code for your voucher (we will also send you an email with the code so that you do not have to write it down):",
+    )
+
     st.markdown(
         r'<div style="text-align: center;"><span class="amazon_voucher">{}</span></div>'.format(
             st.session_state["amazon_voucher"]
         ),
         unsafe_allow_html=True,
     )
-    sendFinalEmail()
+
+    st.markdown(
+        "<div style='text-align: center;'><br/><br/>Thanks again! You can now close your browser.</div>",
+        unsafe_allow_html=True,
+    )
+
+    # sendFinalEmail()
 
 elif st.session_state["web_page"] == "Instructions_page":
-    st.header("How we generate feedback")
+    st.markdown(
+        """ # Evaluating the quality of feedback on student assignments
 
-    st.text(
-        '"Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum."'
-    )
+You are being invited to take part in a research study looking at students’ evaluation of the feedback they receive on their written assignments.
 
-    st.markdown(
-        "- Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut et dolore magna aliqua."
-    )
-    st.markdown(
-        "- Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut et dolore magna aliqua."
-    )
-    st.markdown(
-        "- Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut et dolore magna aliqua."
-    )
-    st.markdown(
-        "- Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut et dolore magna aliqua."
-    )
-    st.markdown(
-        "- Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut et dolore magna aliqua."
-    )
-    st.markdown(
-        "- Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut et dolore magna aliqua."
+<strong>You were chosen as a participant because you are a Year 1 student in the BSc Psychology undergraduate programme at QUB.
+Before you decide to take part in this study it is important for you to understand what the research will involve. Please take time to read the following information and do not hesitate to contact us should you require any further details.</strong>
+
+In this survey, we will show you the feedback you received on one of your written assignments, namely your Semester 2 essay on individual differences. We will also show you an alternative version of that feedback.
+
+Once you have read both versions of the feedback, we will ask you to rate their quality using four statements each.
+The study should take <span style="color:red;font-weight:bold">no more than 20 minutes</span> to complete. So please take the time and read both versions of the feedback thoroughly before rating their quality. <span style="color:red;font-weight:bold">You will receive an Amazon voucher worth £15 for your time. Please continue until the very end of this questionnaire to receive your compensation.</span>
+
+Your participation is entirely voluntary, and you have the right to withdraw at any time during the study by closing this webpage. If you decide to close this webpage before the end of the questionnaire, your partial response will be deleted as a matter of course. Once you have completed the study, you will not be able to withdraw your data.
+Please note: Your participation in our study will be treated with confidentiality. The data we gather from you and other participants during this study will be fully anonymised prior to analysis so that no one will be able to link the data to you personally. In addition, we will not share your evaluations with your tutors who provided the feedback. Therefore, you can be completely honest in your evaluations.
+Since the data we collect from you may be of interest to other researchers, we will publish it on a publicly accessible online data repository. At that point, anyone will have access to your anonymised (i.e., non-identifiable) data.
+
+Our research depends crucially on the generous help of participants like yourself. We hope that you can assist us with this project.
+
+If you have any further queries, please do not hesitate to contact Dr Thomas Schultze at <span style="color:red">t.schultze@qub.ac.uk</span>
+ """,
+        unsafe_allow_html=True,
     )
 
     clicked = st.button("Proceed", type="primary")
 
+    if clicked:
+        st.session_state["web_page"] = "Consent_page"
+        st.experimental_rerun()
+
+elif st.session_state["web_page"] == "Consent_page":
+    st.header("Consent to taking part in the study.")
+    st.markdown(
+        "Please tick each statement to indicate your agreement. If left unmarked, you will not be able to proceed to the questionnaire."
+    )
+
+    agree1 = st.checkbox(
+        "1.	I have read and understood the information about the study."
+    )
+    agree2 = st.checkbox(
+        "2.	I understand that my participation is entirely voluntary and that I am free to withdraw during the study at any time without giving a reason."
+    )
+    agree3 = st.checkbox(
+        "3.	I understand that my involvement in this research is strictly anonymous and that my participating is confidential. "
+    )
+    agree4 = st.checkbox(
+        "4.	I understand that my anonymised data will be published in a public repository."
+    )
+    agree5 = st.checkbox(
+        "5.	I consent to my data being made available anonymously in a public repository."
+    )
+    agree6 = st.checkbox("6.	I consent to participate in this study.")
+
+    if st.button(
+        "I do Consent, Proceed.",
+        disabled=not agree1
+        or not agree2
+        or not agree3
+        or not agree4
+        or not agree5
+        or not agree6,
+        type="primary",
+    ):
+        if st.session_state["show_instructions_first"]:
+            st.session_state["web_page"] = "Conditional_Instructions_page"
+        else:
+            st.session_state["web_page"] = "Survey_page"
+        st.experimental_rerun()
+
+    if st.button(
+        "I do not Consent",
+        disabled=agree1 and agree2 and agree3 and agree4 and agree5 and agree6,
+    ):
+        st.session_state["web_page"] = "Do_not_consent_page"
+        st.experimental_rerun()
+
+elif st.session_state["web_page"] == "Do_not_consent_page":
+    st.markdown(
+        '<h1 style="text-align: center; margin-top: 2rem;">&nbsp;</h1>',
+        unsafe_allow_html=True,
+    )
+    st.subheader(
+        "You have not provided consent to take part in our study. Nonetheless, we thank you for considering to take part."
+    )
+    st.subheader("You can now close your browser.")
+    st.markdown(
+        """If you withheld consent to take part accidentally and would like to participate, please contact <br/>
+        Dr Thomas Schultze-Gerlach (t.schultze@qub.ac.uk)""",
+        unsafe_allow_html=True,
+    )
+
+
+elif st.session_state["web_page"] == "Conditional_Instructions_page":
+    if st.session_state["show_instructions_first"]:
+        st.header("Instructions:")
+        st.markdown(
+            "In this study, we will show you the feedback you received on your PSY1008 essay on individual differences where you compared the personality theories of Freud and Rogers."
+        )
+        st.markdown(
+            "In addition to the actual feedback you received from your tutor, we will show you an alternative version of that feedback."
+        )
+        st.markdown(
+            """We would like to briefly explain how we created the alternative version of the feedback. To create it, we took the original feedback provided by your tutor and fed it into an AI, more specifically, a large language model (LLM). The LLM we used was ChatGPT, which you might be familiar with. We instructed the AI to take the original feedback and make it constructive and encouraging . The result is what we call **AI-augmented feedback**. AI-augmented feedback differs from AI-generated feedback in that it is based on human evaluation of your essay instead of an AI attempting to evaluate and provide feedback on its own."""
+        )
+        st.markdown(
+            """We would kindly ask you to read both versions of the feedback on your essay thoroughly. Once you have read them, please rate each version using a set of four statements. Please also state which version of the feedback you would prefer if you had to choose between them and describe briefly why you prefer one version of the feedback over the other."""
+        )
+        st.markdown(
+            "**Important:** Remember that your responses will be treated confidentially. That is, your tutor will not see how you rated their feedback, and you can be completely honest in your assessment of that feedback."
+        )
+    else:
+        st.markdown(
+            '<h1 style="text-align: center; margin-top: 2rem;">&nbsp;</h1>',
+            unsafe_allow_html=True,
+        )
+        st.header("Thank you for taking part in this study.")
+        st.markdown(
+            "Before, we tell you what the aim of our study was, we would first like to briefly explain how we created the alternative version of the feedback you just read. To create it, we took the original feedback provided by your tutor and fed it into an AI, more specifically, a large language model (LLM). The LLM we used was ChatGPT, which you might be familiar with. We instructed the AI to take the original feedback and make it constructive and encouraging. The result is what we call **AI-augmented feedback**. AI-augmented feedback differs from AI-generated feedback in that it is based on human evaluation of your essay instead of an AI attempting to evaluate and provide feedback on its own."
+        )
+        st.markdown(
+            "The aim of our study was to investigate how students would evaluate AI-augmented feedback relative to the original feedback they actually received and which the augmented feedback was based on. The reason why we study AI-augmented feedback is because we want to provide our students with the best possible feedback. Augmenting human feedback with AI might be a way to improve the quality of feedback while making sure that feedback still entails human evaluation of the assignment."
+        )
+        st.markdown(
+            "By taking part in our study, you have provided valuable information on the perceived quality of AI-augmented feedback relative to purely human feedback. Thank you again for taking the time!"
+        )
+
+    clicked = st.button(
+        "Okay, I understand.",
+        type="primary",
+    )
     if clicked:
         if st.session_state["show_instructions_first"]:
             st.session_state["web_page"] = "Survey_page"
