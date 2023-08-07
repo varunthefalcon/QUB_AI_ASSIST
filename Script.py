@@ -109,7 +109,7 @@ if "email_sent_flag" not in st.session_state:
     st.session_state["email_sent_flag"] = False
 
 if "web_page" not in st.session_state:
-    st.session_state["web_page"] = "Survey_page"
+    st.session_state["web_page"] = "Login_page"
 
 # Login_page > Instructions_page > Consent_Page(Do_not_consent_page) > (Conditional_Instructions_page) > Survey_page > (Conditional_Instructions_page) > Voucher_page
 
